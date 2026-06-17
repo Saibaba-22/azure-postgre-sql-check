@@ -8,6 +8,12 @@ terraform {
   }
 }
 
+# provider block 
+provider "azurerm" {
+  features {}
+    # configuration options
+}
+
 # backend block 
 terraform {
   backend "azurerm" {
