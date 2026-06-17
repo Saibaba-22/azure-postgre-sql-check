@@ -1,4 +1,4 @@
-rg_rgname = "SaiRG"
+rg_rgname = "SaiRG1"
 rg_rgloc = "Korea Central"
 vnet_vnetname1 = "Saivnet"
 vnet_vnetloc1 = "Canada Central"
