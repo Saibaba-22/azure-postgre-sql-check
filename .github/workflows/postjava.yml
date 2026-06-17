@@ -10,18 +10,29 @@ on:
       action:
         description: "Terraform Action"
         required: true
-        default: "apply"
+        default: apply
         type: choice
         options:
           - apply
           - destroy
+
+permissions:
+  id-token: write
+  contents: read
 
 env:
   TF_VERSION: "1.12.2"
 
 jobs:
   terraform:
+    name: Terraform Deploy
     runs-on: ubuntu-latest
+
+    env:
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
 
     steps:
       - name: Checkout Repository
@@ -32,10 +43,28 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
+      - name: Validate Required Secrets
+        run: |
+          [ -n "$ARM_CLIENT_ID" ] || { echo "ARM_CLIENT_ID is missing"; exit 1; }
+          [ -n "$ARM_CLIENT_SECRET" ] || { echo "ARM_CLIENT_SECRET is missing"; exit 1; }
+          [ -n "$ARM_SUBSCRIPTION_ID" ] || { echo "ARM_SUBSCRIPTION_ID is missing"; exit 1; }
+          [ -n "$ARM_TENANT_ID" ] || { echo "ARM_TENANT_ID is missing"; exit 1; }
+
       - name: Azure Login
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      - name: Verify Azure Login
+        run: |
+          az account show
+          az account list --output table
+
+      - name: Terraform Format Check
+        if: github.event.inputs.action != 'destroy'
+        run: terraform fmt -check -recursive
 
       - name: Terraform Init
         run: terraform init
@@ -47,6 +76,13 @@ jobs:
       - name: Terraform Plan
         if: github.event_name == 'push' || github.event.inputs.action == 'apply'
         run: terraform plan -out=tfplan
+
+      - name: Upload Terraform Plan
+        if: github.event_name == 'push' || github.event.inputs.action == 'apply'
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: tfplan
 
       - name: Terraform Apply
         if: github.event_name == 'push' || github.event.inputs.action == 'apply'
